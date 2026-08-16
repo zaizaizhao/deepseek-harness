@@ -2716,6 +2716,48 @@ export interface Config {
 
 Source: [`packages/todo/tool-todo/src/index.ts:29`](../packages/todo/tool-todo/src/index.ts)
 
+<a id="deepseek-aidsh-tool-vision-luna"></a>
+
+## `@deepseek-ai/dsh-tool-vision-luna`
+
+Requires: `attachments` · `fs` · `sessions` · `llm` · `tools` · `subagents` · `systemPrompt` · `jobs`
+
+```ts config-catalog
+/** User-owned non-secret plugin configuration. */
+export interface Config {
+  /** Existing Harness LLM provider route used by the child. */
+  readonly provider?: string
+  /** Existing Harness LLM model id used by the child. */
+  readonly model?: string
+  /** Maximum child response tokens. */
+  readonly maxTokens?: number
+  /** Model-facing tool name. */
+  readonly toolName?: string
+  /** Whether calls may use the ordinary background-job route. */
+  readonly enableRunInBackground?: boolean
+  /** Absolute child delegation-depth cap. */
+  readonly maxDepth?: number
+  /** Maximum simultaneous visual child executions across this plugin instance. */
+  readonly maxConcurrency?: number
+  /** Maximum process-local completed-result cache entries. */
+  readonly cacheMaxEntries?: number
+  /** Maximum UTF-8 bytes in one visual question. */
+  readonly maxQuestionBytes?: number
+  /** Maximum complete foreground or background visual execution time. */
+  readonly visionTimeoutMs?: number
+  /** Exact HTTPS origins from which URL assets may be downloaded. */
+  readonly allowedUrlOrigins?: string[]
+  /** Per-download deadline. */
+  readonly urlTimeoutMs?: number
+  /** Maximum followed redirects; every destination is revalidated. */
+  readonly maxRedirects?: number
+  /** Maximum URL string length. */
+  readonly maxUrlLength?: number
+}
+```
+
+Source: [`packages/subagent/tool-vision-luna/src/index.ts:42`](../packages/subagent/tool-vision-luna/src/index.ts)
+
 <a id="deepseek-aidsh-tool-web"></a>
 
 ## `@deepseek-ai/dsh-tool-web`
@@ -3058,6 +3100,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-tool` ([`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-trajectory` ([`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-user-questions` ([`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-vision-luna` ([`packages/client/ui-vision-luna/src/index.ts`](../packages/client/ui-vision-luna/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workflow-run` ([`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workspace` ([`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts))
 - `@deepseek-ai/dsh-command-compact` — requires `commands` · `compaction` ([`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts))
@@ -3149,3 +3192,4 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-typert-generator` ([`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts))
 - `@deepseek-ai/dsh-typert-protocol` ([`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts))
 - `@deepseek-ai/dsh-typert-registry` ([`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts))
+- `@deepseek-ai/dsh-vision-luna` ([`packages/bundle/vision-luna/src/index.ts`](../packages/bundle/vision-luna/src/index.ts))

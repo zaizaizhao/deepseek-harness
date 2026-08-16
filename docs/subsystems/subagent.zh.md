@@ -650,6 +650,28 @@ Types: [Agent](core.md) · [ContentBlock](llm-streaming.md) · [MessageId](llm-s
 
 Source: [`packages/subagent/subagent/src/index.ts:171`](../../packages/subagent/subagent/src/index.ts)
 
+<a id="ctxvisionluna--visionlunaservice"></a>
+
+### `ctx.visionLuna` — `VisionLunaService`
+
+Host service and Cordis plugin for governed Luna visual delegation.
+
+```ts cordis-catalog
+/**
+ * Admit one browser image into the durable Harness attachment store.
+ * The Agent is resolved by the existing Typert Agent lookup; credentials are absent from this API.
+ * @param agent - exact live Agent and Session authorization owner.
+ * @param request - ordered image batch using canonical base64 payloads.
+ * @param signal - Remote caller cancellation.
+ * @returns durable Session-authorized asset receipt.
+ */
+@Remote('upload') upload(agent: Agent, request: VisionUploadRequest, signal: AbortSignal): Promise<VisionUploadResult>
+```
+
+Types: [Agent](core.md)
+
+Source: [`packages/subagent/tool-vision-luna/src/index.ts:178`](../../packages/subagent/tool-vision-luna/src/index.ts)
+
 <a id="subagent-events"></a>
 
 ### `subagent/*` events

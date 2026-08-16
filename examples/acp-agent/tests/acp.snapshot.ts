@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -40,6 +41,7 @@ const FS_CONFIG = fileURLToPath(new URL('../fs.cordis.yml', import.meta.url))
 const SESSION_QUERY_CONFIG = fileURLToPath(new URL('../session-query.cordis.yml', import.meta.url))
 const IMAGE_CONFIG = fileURLToPath(new URL('../image.cordis.yml', import.meta.url))
 const IMAGE_TEXT_ROUTE_CONFIG = fileURLToPath(new URL('../image-text-route.cordis.yml', import.meta.url))
+const VISION_LUNA_CONFIG = fileURLToPath(new URL('../vision-luna.cordis.yml', import.meta.url))
 const PTY_CONFIG = fileURLToPath(new URL('../pty.cordis.yml', import.meta.url))
 const DEPTH_TWO_CONFIG = fileURLToPath(new URL('../depth-two.cordis.yml', import.meta.url))
 const CHILD_QUESTION_CONFIG = fileURLToPath(new URL('../child-question.cordis.yml', import.meta.url))
@@ -103,6 +105,14 @@ async function prepareFsSearchWorkspace(cwd: string): Promise<void> {
     await writeFile(target, 'fixture\n')
     await utimes(target, mtime, mtime)
   }
+}
+
+/** Create the portable one-pixel visual fixture from text-owned source data. */
+async function prepareVisionLunaWorkspace(cwd: string): Promise<void> {
+  await writeFile(join(cwd, 'red.png'), Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+    'base64',
+  ))
 }
 
 // TODO(acp-snapshot-ownership): Move backend/product scenarios to headless while
@@ -211,6 +221,20 @@ const SCENARIOS: Scenario[] = [
     recorded: false,
     headerClass: 'image',
     configPath: IMAGE_TEXT_ROUTE_CONFIG,
+  },
+  {
+    name: 'vision-luna',
+    hasModelTurn: true,
+    recorded: false,
+    pinsHeader: true,
+    headerClass: 'vision-luna',
+    configPath: VISION_LUNA_CONFIG,
+    prepareWorkspace: prepareVisionLunaWorkspace,
+    pinsChildToolSchemas: [1],
+    pinsChildSystemPrompts: [1],
+    childRequestConfigs: {
+      1: { provider: 'zaizaizhao', model: 'gpt-5.6-luna', maxTokens: 4096 },
+    },
   },
   {
     name: 'pty-tools',

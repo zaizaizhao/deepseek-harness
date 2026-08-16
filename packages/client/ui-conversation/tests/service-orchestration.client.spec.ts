@@ -11,6 +11,7 @@ import type { QueuedMessage, SessionFace } from '@deepseek-ai/dsh-client-runtime
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { InputHub } from '../src/client/input/hub.ts'
 import { ConversationController, UnsupportedImageMediaTypeError } from '../src/client/service.ts'
+import type { ConversationImageIntake } from '../src/client/service.ts'
 import { zh } from '../src/client/locales.ts'
 
 async function bench(readAttachment?: SessionFace['readAttachment']) {
@@ -33,8 +34,18 @@ async function bench(readAttachment?: SessionFace['readAttachment']) {
   await fiber.await()
   const root = runtime.ctx.get('conversation') as ConversationController
   const scoped = runtime.sessions.scope('s1')!.get('conversation') as ConversationController
+  const session = runtime.sessions.behavior('s1')
   const shell = hub.shellFor(runtime.sessions.binding('s1')!)
-  return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder }
+  return { runtime, fiber, root, scoped, session, hub, shell, prompt, updateQueue, cancel, loadOlder }
+}
+
+function mountImageIntake(ctx: Context, adapter: ConversationImageIntake) {
+  return ctx.plugin({
+    inject: ['conversation'],
+    apply(pluginCtx: Context): void {
+      pluginCtx.conversation.registerImageIntake(adapter)
+    },
+  })
 }
 
 describe('ConversationController', () => {
@@ -112,6 +123,132 @@ describe('ConversationController', () => {
     ])).toThrow(UnsupportedImageMediaTypeError)
     expect(created).not.toHaveBeenCalled()
     created.mockRestore()
+    await b.runtime.dispose()
+  })
+
+  it('keeps native raw-image serialization when no intake plugin is mounted', async () => {
+    const b = await bench()
+    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:native')
+    const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined)
+    try {
+      const [attachment] = b.root.createDraftImages([
+        new File([Uint8Array.of(1, 2, 3)], 'native.png', { type: 'image/png' }),
+      ])
+      if (attachment === undefined) throw new Error('draft attachment missing')
+      await b.root.sendSession(b.session, 'inspect', [attachment.id], 'queue')
+      expect(b.prompt).toHaveBeenCalledWith([
+        { type: 'image', mediaType: 'image/png', data: 'AQID', name: 'native.png' },
+        { type: 'text', text: 'inspect' },
+      ], 'queue')
+      expect(b.root.draftImages([attachment.id])).toEqual([])
+      expect(revoked).toHaveBeenCalledWith('blob:native')
+    } finally {
+      created.mockRestore()
+      revoked.mockRestore()
+    }
+    await b.runtime.dispose()
+  })
+
+  it('lets one intake plugin replace image bytes with text-only references', async () => {
+    const b = await bench()
+    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:governed')
+    const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined)
+    const prepare = vi.fn<ConversationImageIntake['prepare']>(() => Promise.resolve([
+      { type: 'text', text: 'asset_id=vision:sha256' },
+    ]))
+    const intake = mountImageIntake(b.runtime.ctx, { prepare })
+    await intake.await()
+    try {
+      const [attachment] = b.root.createDraftImages([
+        new File([Uint8Array.of(4, 5)], 'governed.png', { type: 'image/png' }),
+      ])
+      if (attachment === undefined) throw new Error('draft attachment missing')
+      await b.root.sendSession(b.session, 'what is shown?', [attachment.id], 'steer')
+      expect(prepare).toHaveBeenCalledOnce()
+      expect(prepare.mock.calls[0]?.[0]).toMatchObject({
+        sessionId: b.session.sessionId,
+        files: [expect.objectContaining({ name: 'governed.png', type: 'image/png' })],
+      })
+      expect(b.prompt).toHaveBeenCalledWith([
+        { type: 'text', text: 'asset_id=vision:sha256' },
+        { type: 'text', text: 'what is shown?' },
+      ], 'steer')
+    } finally {
+      await intake.dispose()
+      created.mockRestore()
+      revoked.mockRestore()
+    }
+    await b.runtime.dispose()
+  })
+
+  it('fails loud on duplicate intake providers and restores native behavior after unload', async () => {
+    const b = await bench()
+    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:hmr')
+    const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined)
+    const first = mountImageIntake(b.runtime.ctx, {
+      prepare: () => Promise.resolve([{ type: 'text', text: 'asset_id=first' }]),
+    })
+    await first.await()
+    const duplicate = mountImageIntake(b.runtime.ctx, {
+      prepare: () => Promise.resolve([{ type: 'text', text: 'asset_id=second' }]),
+    })
+    await expect(duplicate).rejects.toThrow('already registered')
+    await first.dispose()
+    try {
+      const [attachment] = b.root.createDraftImages([
+        new File([Uint8Array.of(9)], '', { type: 'image/gif' }),
+      ])
+      if (attachment === undefined) throw new Error('draft attachment missing')
+      await b.root.sendSession(b.session, '', [attachment.id], 'queue')
+      expect(b.prompt).toHaveBeenCalledWith([
+        { type: 'image', mediaType: 'image/gif', data: 'CQ==' },
+      ], 'queue')
+    } finally {
+      created.mockRestore()
+      revoked.mockRestore()
+    }
+    await b.runtime.dispose()
+  })
+
+  it('aborts an in-flight intake on plugin unload and retains drafts after prompt failure', async () => {
+    const b = await bench()
+    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:pending')
+    const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined)
+    const pending = Promise.withResolvers<readonly [{ readonly type: 'text'; readonly text: string }]>()
+    let signal: AbortSignal | undefined
+    const intake = mountImageIntake(b.runtime.ctx, {
+      prepare: (request) => {
+        signal = request.signal
+        return pending.promise
+      },
+    })
+    await intake.await()
+    const [attachment] = b.root.createDraftImages([
+      new File([Uint8Array.of(7)], 'pending.webp', { type: 'image/webp' }),
+    ])
+    if (attachment === undefined) throw new Error('draft attachment missing')
+    const sending = b.root.sendSession(b.session, 'pending', [attachment.id], 'queue')
+    await vi.waitFor(() => { expect(signal).toBeDefined() })
+    await intake.dispose()
+    expect(signal?.aborted).toBe(true)
+    pending.resolve([{ type: 'text', text: 'asset_id=too-late' }])
+    await expect(sending).rejects.toBe('conversation image intake adapter unloaded')
+    expect(b.prompt).not.toHaveBeenCalled()
+    expect(b.root.draftImages([attachment.id])).toHaveLength(1)
+
+    const failing = mountImageIntake(b.runtime.ctx, {
+      prepare: () => Promise.resolve([{ type: 'text', text: 'asset_id=retained' }]),
+    })
+    await failing.await()
+    b.prompt.mockResolvedValueOnce({
+      ok: false, error: { code: 'internal', message: 'down', details: {} },
+    } as never)
+    await expect(b.root.sendSession(b.session, 'retry', [attachment.id], 'queue'))
+      .rejects.toThrow('conversation.send failed: internal: down')
+    expect(b.root.draftImages([attachment.id])).toHaveLength(1)
+    await failing.dispose()
+    created.mockRestore()
+    revoked.mockRestore()
     await b.runtime.dispose()
   })
 

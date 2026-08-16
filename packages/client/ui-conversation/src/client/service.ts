@@ -34,6 +34,13 @@ export interface IConversation {
    */
   readonly blocks: ComposerBlocks
   /**
+   * Install the sole pre-prompt image intake route. Duplicate providers fail loud;
+   * disposing the registering plugin restores native image prompt serialization.
+   * @param adapter - trusted Client plugin that returns text-only prompt parts.
+   * @returns effect-scoped disposer.
+   */
+  registerImageIntake(adapter: ConversationImageIntake): () => Promise<void>
+  /**
    * Send a prompt into the caller scope's session (queued turn).
    * @param text - prompt text, sent verbatim as one text block.
    * @returns completion; business failures reject (and land in promptError).
@@ -58,6 +65,34 @@ export interface IConversation {
   loadOlder(): Promise<void>
 }
 
+/** Text-only prompt part returned by an image intake adapter. */
+export interface ConversationTextPromptPart {
+  /** Text-part discriminant; an adapter cannot return a raw image block. */
+  readonly type: 'text'
+  /** Stable parent-visible reference or instruction. */
+  readonly text: string
+}
+
+/** One submit-time image intake request. */
+export interface ConversationImageIntakeRequest {
+  /** Target Agent/Session identity used for scoped Remote authorization. */
+  readonly sessionId: SessionId
+  /** Ordered browser files already admitted by composer MIME/size policy. */
+  readonly files: readonly File[]
+  /** Aborted when the adapter, conversation service, or Client plugin unloads. */
+  readonly signal: AbortSignal
+}
+
+/** Optional Client extension that replaces raw image prompt parts with text references. */
+export interface ConversationImageIntake {
+  /**
+   * Persist every image before the parent prompt is sent.
+   * @param request - scoped files and cancellation.
+   * @returns text-only prompt parts; image bytes must not be embedded in text.
+   */
+  prepare(request: ConversationImageIntakeRequest): Promise<readonly ConversationTextPromptPart[]>
+}
+
 /** Create one browser-only draft descriptor; only its id enters input state. */
 function browserDraftAttachment(file: File): ComposerAttachment {
   return {
@@ -72,6 +107,11 @@ interface ImageUrlEntry {
   readonly sessionId: SessionId
   readonly generation: number
   readonly pending: Promise<string>
+}
+
+interface ImageIntakeEntry {
+  readonly owner: object
+  readonly adapter: ConversationImageIntake
 }
 
 /** Unsupported browser-declared image type, localized by the UI boundary. */
@@ -97,6 +137,8 @@ export class ConversationController extends Service implements IConversation {
   private readonly imageUrls = new Map<string, ImageUrlEntry>()
   private readonly imageGenerations = new Map<SessionId, number>()
   private readonly createdImageUrls = new Set<string>()
+  private readonly imageIntakeState: { current: ImageIntakeEntry | undefined } = { current: undefined }
+  private readonly imageIntakeOperations = new Map<AbortController, object>()
   private disposed = false
 
   /**
@@ -112,12 +154,41 @@ export class ConversationController extends Service implements IConversation {
     this.blocks = config.blocks
     ctx.effect(() => () => {
       this.disposed = true
+      for (const controller of this.imageIntakeOperations.keys()) {
+        controller.abort('conversation service disposed during image intake')
+      }
+      this.imageIntakeOperations.clear()
+      this.imageIntakeState.current = undefined
       for (const url of this.createdImageUrls) revokePreview(url)
       this.createdImageUrls.clear()
       this.draftAttachments.clear()
       this.imageUrls.clear()
       this.imageGenerations.clear()
     }, 'conversation attachment URL cache')
+  }
+
+  /**
+   * Register the single submit-time image intake adapter in the caller's fiber.
+   * @param adapter - text-only image intake implementation.
+   * @returns disposer that aborts that adapter's pending requests and restores native serialization.
+   */
+  registerImageIntake(adapter: ConversationImageIntake): () => Promise<void> {
+    const state = this.imageIntakeState
+    if (state.current !== undefined) {
+      throw new Error('conversation image intake adapter is already registered')
+    }
+    const owner = {}
+    const operations = this.imageIntakeOperations
+    return this.ctx.effect(function* () {
+      state.current = { owner, adapter }
+      yield () => {
+        if (state.current?.owner === owner) state.current = undefined
+        for (const [controller, operationOwner] of operations) {
+          if (operationOwner !== owner) continue
+          controller.abort('conversation image intake adapter unloaded')
+        }
+      }
+    }, 'conversation image intake adapter')
   }
 
   /**
@@ -149,7 +220,10 @@ export class ConversationController extends Service implements IConversation {
     if (attachments.length !== imageIds.length) {
       throw new Error('conversation.sendSession: one or more draft images are no longer available')
     }
-    const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+    const files = attachments.map(attachment => attachment.file)
+    const uploaded = this.imageIntakeState.current === undefined
+      ? await this.serializeImages(files)
+      : await this.prepareImages(session.sessionId, files, this.imageIntakeState.current)
     const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
     const result = await session.prompt(content, mode)
     if (!result.ok) throw new Error(`conversation.send failed: ${result.error.code}: ${result.error.message}`)
@@ -320,6 +394,23 @@ export class ConversationController extends Service implements IConversation {
       data: bytesToBase64(new Uint8Array(await file.arrayBuffer())),
       ...(file.name === '' ? {} : { name: file.name }),
     })))
+  }
+
+  /** Run one adapter under service and registration teardown cancellation. */
+  private async prepareImages(
+    sessionId: SessionId,
+    files: readonly File[],
+    entry: ImageIntakeEntry,
+  ): Promise<ConversationTextPromptPart[]> {
+    const controller = new AbortController()
+    this.imageIntakeOperations.set(controller, entry.owner)
+    try {
+      const parts = await entry.adapter.prepare({ sessionId, files, signal: controller.signal })
+      if (controller.signal.aborted) throw controller.signal.reason
+      return [...parts]
+    } finally {
+      this.imageIntakeOperations.delete(controller)
+    }
   }
 }
 

@@ -932,6 +932,19 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/core/session/src/types.ts:264`](../packages/core/session/src/types.ts)
 
+### `vision/*`
+
+<a id="visionasset--log-only"></a>
+
+#### `vision/asset` — log-only
+
+```ts persistence-catalog
+/** Durable, log-only authorization from one parent Session to an immutable image object. */
+'vision/asset': VisionAssetEventData
+```
+
+来源：[`packages/subagent/tool-vision-luna/src/assets.ts:43`](../packages/subagent/tool-vision-luna/src/assets.ts)
+
 ### `web/*`
 
 <a id="webdeepseek-search-llm-request--log-only"></a>

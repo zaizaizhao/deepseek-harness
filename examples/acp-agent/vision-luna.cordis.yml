@@ -1,0 +1,37 @@
+# Runnable Luna-vision overlay. The text-only parent stays on DeepSeek while
+# the visual child selects an independently configured zaizaizhao route. This
+# live leaf expects the route to exist in Harness settings; its sibling
+# vision-luna.cordis.snapshot.yml replaces both providers with a deterministic
+# keyless adapter for the acceptance snapshot.
+- id: base
+  name: '@deepseek-ai/cordis-plugin-include'
+  config:
+    path: ./cordis.yml
+    patches:
+      - insert:
+          # These are the same Harness-owned settings and credential providers
+          # used by product profiles. The vision plugin never receives a key.
+          - id: settings
+            name: '@deepseek-ai/dsh-settings-file'
+
+          - id: credentials
+            name: '@deepseek-ai/dsh-credentials-local'
+
+          - id: attachment-local
+            name: '@deepseek-ai/dsh-attachment-local'
+
+          - id: jobs
+            name: '@deepseek-ai/dsh-jobs-local'
+
+          - id: llm-pi-ai
+            name: '@deepseek-ai/dsh-llm-pi-ai'
+
+          - id: tool-vision-luna
+            name: '@deepseek-ai/dsh-tool-vision-luna'
+            config:
+              provider: zaizaizhao
+              model: gpt-5.6-luna
+              maxTokens: 4096
+              maxDepth: 1
+              maxConcurrency: 1
+              enableRunInBackground: false

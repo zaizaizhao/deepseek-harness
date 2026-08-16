@@ -1,0 +1,24 @@
+# Optional visual delegation for a Web profile. Apply this bundle after
+# @deepseek-ai/dsh-base and @deepseek-ai/dsh-web-app.
+#
+# This layer selects only a Harness provider/model route and non-secret
+# governance policy. Provider endpoint/protocol/catalog configuration belongs
+# to the llm-pi-ai section of $DSH_HOME/settings.yaml; the referenced key stays
+# in Harness credentials or the inherited launch environment.
+
+- insert:
+    - id: tool-vision-luna
+      name: '@deepseek-ai/dsh-tool-vision-luna'
+      config:
+        provider: zaizaizhao
+        model: gpt-5.6-luna
+        maxTokens: 4096
+        maxDepth: 1
+        maxConcurrency: 1
+        cacheMaxEntries: 128
+        maxQuestionBytes: 8192
+        visionTimeoutMs: 120000
+        enableRunInBackground: true
+
+    - id: ui-vision-luna
+      name: '@deepseek-ai/dsh-client-ui-vision-luna'

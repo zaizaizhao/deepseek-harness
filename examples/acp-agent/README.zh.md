@@ -11,6 +11,19 @@ pnpm run demo:code-mode       # same protocol with the Code Mode tool transport
 
 该叶节点加载 ACP 应用、DeepSeek 适配器、受沙箱限制的 bash 与文件系统栈、一次性批准策略、压缩（compaction）、subagent、工作流、钩子、派生会话查询索引和重复守卫。应用为每次 `session/new` 创建一个新 agent，将会话持久化到 JSONL，并保持 stdout 只含协议内容。可选 overlay 可添加会话查询、文件系统 spill 存储、Code Mode 或 Web 抓取。
 
+## 纯文本父模型与 Luna 视觉子模型
+
+[`vision-luna.cordis.yml`](vision-luna.cordis.yml) 添加与可安装组合包 `@deepseek-ai/dsh-vision-luna` 相同的附件、任务、设置、凭据、通用 LLM 适配器和视觉工具插件。ACP 父模型仍使用 DeepSeek；每次 `gpt_luna_vision` 调用都会启动一个隔离的 `zaizaizhao/gpt-5.6-luna` 子模型。在 Harness 自有的 `llm-pi-ai:` 设置命名空间配置该提供方，并通过“模型”页面、`$DSH_HOME/.credentials.yaml` 或启动环境保存它引用的 `ZAIZAIZHAO_API_KEY`。视觉插件不接受密钥、端点、协议或请求头。
+
+```sh
+node --import tsx packages/examples/acp-demo/src/bin.ts \
+  --config examples/acp-agent/vision-luna.cordis.yml
+pnpm exec vitest run --config vitest.snapshot.config.ts \
+  -t 'snapshot: vision-luna matches the expected outputs'
+```
+
+第二条命令不需要密钥，并验证完整组装后的 transcript：父模型请求没有图像块，子模型路由为 `zaizaizhao/gpt-5.6-luna`，返回父模型的是结构化文本。提供方 schema、凭据归属、安全检查和限制以[宿主插件参考](../../packages/subagent/tool-vision-luna/README.md)为准。
+
 ## 协议通道
 
 Stdout 只携带以换行分隔的 ACP JSON-RPC。`@deepseek-ai/dsh-acp-demo` 不安装 stdout logger；该叶节点新增的组件必须使用 stderr 输出诊断信息。

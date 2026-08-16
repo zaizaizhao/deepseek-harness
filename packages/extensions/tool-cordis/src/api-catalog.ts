@@ -2024,6 +2024,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'visionLuna',
+    summary: 'Host service and Cordis plugin for governed Luna visual delegation.',
+    description: 'Host service and Cordis plugin for governed Luna visual delegation.',
+    methods: [
+      {
+        signature: '@Remote(\'upload\') upload(agent: Agent, request: VisionUploadRequest, signal: AbortSignal): Promise<VisionUploadResult>',
+        description: 'Admit one browser image into the durable Harness attachment store. The Agent is resolved by the existing Typert Agent lookup; credentials are absent from this API.',
+        parameters: [{ name: 'agent', description: 'exact live Agent and Session authorization owner.' }, { name: 'request', description: 'ordered image batch using canonical base64 payloads.' }, { name: 'signal', description: 'Remote caller cancellation.' }],
+        returns: 'durable Session-authorized asset receipt.',
+      },
+    ],
+  },
+  {
     key: 'web',
     summary: 'The web access service.',
     description: 'The web access service. Registered as `ctx.web` (one instance per context).\n\nSelection semantics (resolved at execution time, never order-dependent):\n\n- A configured id that is registered and `available()` → that provider.\n- A configured id not registered → `WEB_PROVIDER_CONFIGURED_MISSING`.\n- A configured id registered but unavailable → `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`.\n- No id configured, exactly one registered usable provider → that provider.\n- No id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.\n- No id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.',
@@ -4528,6 +4541,30 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'UserQuestionProvider',
     declaration: 'export interface UserQuestionProvider {\n    ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer>;\n}',
+  },
+  {
+    name: 'VisionAssetId',
+    declaration: 'export type VisionAssetId = Branded<\'VisionAssetId\'>;',
+  },
+  {
+    name: 'VisionImageMediaType',
+    declaration: 'export type VisionImageMediaType = \'image/png\' | \'image/jpeg\' | \'image/webp\' | \'image/gif\';',
+  },
+  {
+    name: 'VisionUploadedAsset',
+    declaration: 'export interface VisionUploadedAsset {\n    readonly assetId: VisionAssetId;\n    readonly mediaType: VisionImageMediaType;\n    readonly bytes: number;\n    readonly width: number;\n    readonly height: number;\n    readonly name?: string;\n}',
+  },
+  {
+    name: 'VisionUploadImage',
+    declaration: 'export interface VisionUploadImage {\n    readonly data: string;\n    readonly mediaType: VisionImageMediaType;\n    readonly name?: string;\n}',
+  },
+  {
+    name: 'VisionUploadRequest',
+    declaration: 'export interface VisionUploadRequest {\n    readonly images: readonly VisionUploadImage[];\n}',
+  },
+  {
+    name: 'VisionUploadResult',
+    declaration: 'export interface VisionUploadResult {\n    readonly toolName: string;\n    readonly assets: readonly VisionUploadedAsset[];\n}',
   },
   {
     name: 'WebBootEntry',

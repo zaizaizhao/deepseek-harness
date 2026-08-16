@@ -35,6 +35,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-subagent` | `subagent` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt` | `tool/call`, `tool/result`, `child session events through the chosen provider` | `subagent`, `subagent_fork` | The registered tool name is the load-time `toolName` config (default `subagent`); the schema above is that default. The shipped compositions load this package once per subagent backend, so the model additionally sees `subagent_fork` bound to the fork backend. Each instance's description, `run_in_background` parameter, and system-prompt policy follow its own `backgroundMode` and `enableRunInBackground`, so the two shipped schemas are not identical: `subagent` is `continuable` and defaults omitted calls to background with automatic settlement delivery, while `subagent_fork` stays `one-shot` and defaults them to foreground — see `packages/bundle/base/cordis.patch.yml` and `examples/acp-agent/cordis.yml`. |
 | `@deepseek-ai/dsh-tool-subagent-control` | `interrupt_agent`, `list_agents`, `send_message` | `ctx.tools`, `ctx.subagents`, `ctx.agents and ctx.sessionProjections (list_agents only)` | `tool/call`, `tool/result`, `child session events through ctx.subagents` | - | The globally named control tools over continuable background subagents: provider-bound `tool-subagent` instances register distinct delegation tools, while this package registers `send_message` and `interrupt_agent` once, plus `list_agents` from its separately loaded `/list-agents` plugin (whose catalog rows use the sessionProjections and live Agent registries). |
 | `@deepseek-ai/dsh-tool-subagent-report` | `report` | `ctx.subagents`, `ctx.systemPrompt`, `a live continuable in-process child Agent` | `tool/call`, `tool/result`, `a user-role message in the direct parent session` | - | Registered per continuable in-process child rather than globally, so this schema is visible only inside such a child and survives its global `toolFilter`. The same contribution installs the child-scoped `tool:report` prompt section, which this catalog does not render. The parent-facing `send_message` tool is installed independently. |
+| `@deepseek-ai/dsh-tool-vision-luna` | `gpt_luna_vision` | `ctx.tools`, `ctx.systemPrompt`, `ctx.attachments`, `ctx.fs`, `ctx.sessions`, `ctx.llm`, `ctx.subagents`, `ctx.jobs` | `tool/call`, `vision/asset during trusted intake`, `child session events through ctx.subagents`, `tool/result` | - | The tool passes no credential or transport config. The selected route resolves through the ordinary Harness LLM, settings, and credentials services; the parent transcript receives structured text while images remain in the isolated child request. |
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`, `job_list`, `job_output` | `ctx.tools`, `ctx.jobs`, `ctx.systemPrompt` | `tool/call`, `tool/result`, `user/message via agent.inject() for background completion notices` | - | The kind-agnostic background-job controller: background bash commands, PTY sends, and subagents are read, listed, and killed through the same three tools. Loading the plugin attaches the controller that arms producers' `ctx.jobs.start()`. |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
@@ -1605,6 +1606,110 @@ Report selected content to the agent that started you. Call this once before you
 Source: [`packages/subagent/tool-subagent-report/src/index.ts`](../packages/subagent/tool-subagent-report/src/index.ts)
 
 Registered per continuable in-process child rather than globally, so this schema is visible only inside such a child and survives its global `toolFilter`. The same contribution installs the child-scoped `tool:report` prompt section, which this catalog does not render. The parent-facing `send_message` tool is installed independently.
+
+<a id="deepseek-aidsh-tool-vision-luna"></a>
+
+## `@deepseek-ai/dsh-tool-vision-luna`
+
+### `gpt_luna_vision`
+
+Delegate one visual question to the isolated Luna image analyst. The calling Agent is text-only and must use this tool instead of guessing image content. Accepts session-authorized asset ids, workspace-contained image paths, and explicitly allowlisted HTTPS URLs. Waits by default; set run_in_background true to return a job id for job_output/job_kill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "description": "Specific visual question. Ask for exact OCR and identify any required evidence or uncertainty."
+    },
+    "assets": {
+      "type": "array",
+      "description": "One or more images. Each item must contain exactly one of asset_id, file_path, or url.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "description": "Session-authorized id returned by browser image intake."
+              }
+            },
+            "required": [
+              "asset_id"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Image path contained by the current Session workspace."
+              }
+            },
+            "required": [
+              "file_path"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "HTTPS URL whose exact origin is allowed by plugin policy."
+              }
+            },
+            "required": [
+              "url"
+            ]
+          }
+        ]
+      }
+    },
+    "region": {
+      "type": "object",
+      "description": "Optional intrinsic-pixel rectangle, valid only with one image.",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ]
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Whether to return a job id immediately after asset admission. Defaults to false."
+    }
+  },
+  "required": [
+    "question",
+    "assets"
+  ]
+}
+```
+
+Source: [`packages/subagent/tool-vision-luna/src/index.ts`](../packages/subagent/tool-vision-luna/src/index.ts)
+
+The tool passes no credential or transport config. The selected route resolves through the ordinary Harness LLM, settings, and credentials services; the parent transcript receives structured text while images remain in the isolated child request.
 
 <a id="deepseek-aidsh-tool-jobs"></a>
 

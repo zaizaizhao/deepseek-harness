@@ -1,0 +1,10 @@
+{
+  "steps": [
+    { "op": "initialize" },
+    { "op": "newSession" },
+    {
+      "op": "prompt",
+      "text": "Use gpt_luna_vision exactly once to inspect red.png. Then reply with exactly VISION_DONE."
+    }
+  ]
+}

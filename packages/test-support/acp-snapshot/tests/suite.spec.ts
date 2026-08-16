@@ -87,6 +87,7 @@ const REPLAY_SCENARIOS: Scenario[] = [
     workspaceParent: tmpdir(),
     pinsChildToolSchemas: [1],
     pinsChildSystemPrompts: [1],
+    childRequestConfigs: { 1: { provider: 'child-provider', model: 'vision-model' } },
     prepareWorkspace: (cwd) => {
       writeFileSync(join(cwd, 'seed.txt'), 'prepared at runtime')
     },

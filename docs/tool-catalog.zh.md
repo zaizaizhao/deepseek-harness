@@ -37,6 +37,7 @@
 | `@deepseek-ai/dsh-tool-subagent` | `subagent` | `ctx.tools`、`ctx.subagents`、`ctx.systemPrompt` | `tool/call`、`tool/result`、`child session events through the chosen provider` | `subagent`、`subagent_fork` | 注册的工具名称取决于加载时 `toolName` 配置（默认为 `subagent`）；上述 schema 对应默认值。随产品发布的组合会为每个 subagent 后端加载一次该包，因此模型还会看到绑定到 fork 后端的 `subagent_fork`。每个实例的描述、`run_in_background` 参数与 system prompt 策略取决于它自己的 `backgroundMode` 和 `enableRunInBackground`，因此两个随附 schema 并不相同：`subagent` 为 `continuable`，省略参数时默认后台运行，并由 runtime 自动投递结束结果；`subagent_fork` 保持 `one-shot`，省略参数时默认前台运行。详见 `packages/bundle/base/cordis.patch.yml` 和 `examples/acp-agent/cordis.yml`。 |
 | `@deepseek-ai/dsh-tool-subagent-control` | `interrupt_agent`、`list_agents`、`send_message` | `ctx.tools`、`ctx.subagents`、`ctx.agents and ctx.sessionProjections (list_agents only)` | `tool/call`、`tool/result`、`child session events through ctx.subagents` | - | 这些是控制可继续后台 subagent 的全局命名工具：绑定提供方的 `tool-subagent` 实例注册不同的委派工具；本包注册一次 `send_message` 和 `interrupt_agent`，另由 `list_agents` 通过单独加载的 `/list-agents` 插件提供，其目录行使用 sessionProjections 和实时 Agent 注册表。 |
 | `@deepseek-ai/dsh-tool-subagent-report` | `report` | `ctx.subagents`、`ctx.systemPrompt`、`a live continuable in-process child Agent` | `tool/call`、`tool/result`、`a user-role message in the direct parent session` | - | 按可继续的进程内子级注册，而非全局注册，因此该 schema 仅在这种子级内部可见，并且不受其全局 `toolFilter` 影响。同一份贡献还会安装子级作用域的 `tool:report` 系统提示词 section，本目录不渲染该 section。面向父级的 `send_message` 工具单独安装。 |
+| `@deepseek-ai/dsh-tool-vision-luna` | `gpt_luna_vision` | `ctx.tools`、`ctx.systemPrompt`、`ctx.attachments`、`ctx.fs`、`ctx.sessions`、`ctx.llm`、`ctx.subagents`、`ctx.jobs` | `tool/call`、`vision/asset during trusted intake`、`child session events through ctx.subagents`、`tool/result` | - | 该工具不传递凭据或传输配置。选定路由通过常规 Harness LLM、设置与凭据服务解析；父模型 transcript 接收结构化文本，图片则留在隔离的子模型请求中。 |
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`、`job_list`、`job_output` | `ctx.tools`、`ctx.jobs`、`ctx.systemPrompt` | `tool/call`、`tool/result`、`user/message via agent.inject() for background completion notices` | - | 与任务种类无关的后台任务控制器：后台 bash 命令、PTY 发送和 subagent 都通过相同的 3 个工具读取、列出和终止。加载该插件会挂接控制器，从而启用生产方的 `ctx.jobs.start()`。 |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
@@ -1609,6 +1610,110 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 来源：[`packages/subagent/tool-subagent-report/src/index.ts`](../packages/subagent/tool-subagent-report/src/index.ts)
 
 按可继续的进程内子级注册，而非全局注册，因此该 schema 仅在这种子级内部可见，并且不受其全局 `toolFilter` 影响。同一份贡献还会安装子级作用域的 `tool:report` 系统提示词 section，本目录不渲染该 section。面向父级的 `send_message` 工具单独安装。
+
+<a id="deepseek-aidsh-tool-vision-luna"></a>
+
+## `@deepseek-ai/dsh-tool-vision-luna`
+
+### `gpt_luna_vision`
+
+把一个视觉问题委派给隔离的 Luna 图片分析子模型。调用方 Agent 只有文本能力，必须使用该工具，不能猜测图片内容。它接受 Session 已授权的资产 id、位于 workspace 内的文件路径，以及策略明确许可的 HTTPS URL。默认等待结果；设置 `run_in_background` 为 true 可返回供 `job_output`／`job_kill` 使用的任务 id。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "description": "Specific visual question. Ask for exact OCR and identify any required evidence or uncertainty."
+    },
+    "assets": {
+      "type": "array",
+      "description": "One or more images. Each item must contain exactly one of asset_id, file_path, or url.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "asset_id": {
+                "type": "string",
+                "description": "Session-authorized id returned by browser image intake."
+              }
+            },
+            "required": [
+              "asset_id"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Image path contained by the current Session workspace."
+              }
+            },
+            "required": [
+              "file_path"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "HTTPS URL whose exact origin is allowed by plugin policy."
+              }
+            },
+            "required": [
+              "url"
+            ]
+          }
+        ]
+      }
+    },
+    "region": {
+      "type": "object",
+      "description": "Optional intrinsic-pixel rectangle, valid only with one image.",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ]
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Whether to return a job id immediately after asset admission. Defaults to false."
+    }
+  },
+  "required": [
+    "question",
+    "assets"
+  ]
+}
+```
+
+来源：[`packages/subagent/tool-vision-luna/src/index.ts`](../packages/subagent/tool-vision-luna/src/index.ts)
+
+该工具不传递凭据或传输配置。选定路由通过常规 Harness LLM、设置与凭据服务解析；父模型 transcript 接收结构化文本，图片则留在隔离的子模型请求中。
 
 <a id="deepseek-aidsh-tool-jobs"></a>
 

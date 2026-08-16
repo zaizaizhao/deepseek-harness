@@ -9,7 +9,7 @@
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import type { ToolSchema } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { type ToolSchema } from '@deepseek-ai/dsh-llm'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createScope } from '@deepseek-ai/dsh-scope'
@@ -59,6 +59,7 @@ import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
+import ToolVisionLuna from '@deepseek-ai/dsh-tool-vision-luna'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
@@ -492,6 +493,39 @@ const TOOL_PACKAGES: ToolPackage[] = [
       + 'inside such a child and survives its global `toolFilter`. The same contribution installs the '
       + 'child-scoped `tool:report` prompt section, which this catalog does not render. The parent-facing '
       + '`send_message` tool is installed independently.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-vision-luna',
+    dir: 'tool-vision-luna',
+    source: 'packages/subagent/tool-vision-luna/src/index.ts',
+    requires: [
+      'ctx.tools',
+      'ctx.systemPrompt',
+      'ctx.attachments',
+      'ctx.fs',
+      'ctx.sessions',
+      'ctx.llm',
+      'ctx.subagents',
+      'ctx.jobs',
+    ],
+    writes: ['tool/call', 'vision/asset during trusted intake', 'child session events through ctx.subagents', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(CatalogAttachmentStore)
+      await ctx.plugin(LocalFileSystem, { cwd: root, diffBasisMaxBytes: 1 })
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(SubagentRuntime)
+      registerCatalogSubagentProvider(ctx, 'spawn')
+      await ctx.plugin(LocalJobRegistry)
+      await ctx.plugin(ToolVisionLuna, {
+        provider: 'zaizaizhao',
+        model: 'gpt-5.6-luna',
+        maxDepth: 1,
+        enableRunInBackground: true,
+      })
+    },
+    note:
+      'The tool passes no credential or transport config. The selected route resolves through the ordinary Harness LLM, settings, and credentials services; the parent transcript receives structured text while images remain in the isolated child request.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-jobs',

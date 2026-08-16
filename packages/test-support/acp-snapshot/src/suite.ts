@@ -129,6 +129,12 @@ export interface Scenario {
    */
   pinsChildSystemPrompts?: readonly number[]
   /**
+   * Exact model request config for child fixture indices whose route differs
+   * from the parent header-class pin. Keys use the same one-based child index
+   * as {@link pinsChildToolSchemas}; absent children inherit the parent config.
+   */
+  childRequestConfigs?: Readonly<Record<number, Readonly<Record<string, unknown>>>>
+  /**
    * How many changed `request/header` snapshots this PINNING scenario's primary
    * fixture legitimately carries (default 0). Their full prompt text is kept in
    * the readable Markdown pin; any other count fails. Meaningless off the pin.
@@ -1404,9 +1410,14 @@ export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
           }
           for (const [k, header] of headers.entries()) {
             const classPin = expectedChanges > 0 ? pinnedHeaders[k] : pinnedHeaders[0]
-            const expected = childSchemas === undefined
+            const childConfig = scenario.childRequestConfigs?.[logIndex]
+            const expected = childSchemas === undefined && childConfig === undefined
               ? classPin
-              : { ...classPin as Record<string, unknown>, tools: childSchemas[k] }
+              : {
+                ...classPin as Record<string, unknown>,
+                ...(childConfig === undefined ? {} : { config: childConfig }),
+                ...(childSchemas === undefined ? {} : { tools: childSchemas[k] }),
+              }
             expect(header, `session ${log.id}: request/header #${k + 1} diverged from the pinned (${pinningScenario.name}) header`)
               .toEqual(expected)
             if (expectedChanges === 0) {

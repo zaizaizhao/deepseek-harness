@@ -17,6 +17,7 @@
 | [`tool-subagent/`](tool-subagent/README.md) | 向模型公开委派操作 | 注册到 `ctx.tools` |
 | [`tool-subagent-control/`](tool-subagent-control/README.md) | 向模型公开子级消息发送和列举操作 | 注册到 `ctx.tools` |
 | [`tool-subagent-report/`](tool-subagent-report/README.md) | 提供从子级到父级的报告通道 | 注册到子级作用域 |
+| [`tool-vision-luna/`](tool-vision-luna/README.md) | 把图像分析委派给配置的视觉模型，同时保持父模型请求只有文本 | 注册到 `ctx.tools` |
 
 参见有关[能力家族](../../.agents/notes/implemented/feature/2026-06-21-subagent-capability-seam.md)、[可继续执行的子级](../../.agents/notes/implemented/feature/2026-07-21-continuable-background-subagents.md)和[控制工具](../../.agents/notes/implemented/simplification/2026-07-26-merge-subagent-control-service.md)的决策。
 
