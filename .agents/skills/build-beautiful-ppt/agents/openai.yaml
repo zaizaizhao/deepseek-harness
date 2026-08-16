@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Beautiful PPT"
+  short_description: "Create editable, evidence-led presentations locally"
+  default_prompt: "Use $build-beautiful-ppt to create a polished, editable PowerPoint deck and verify every rendered slide."
