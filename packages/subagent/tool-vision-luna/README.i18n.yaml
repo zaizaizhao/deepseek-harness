@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/subagent/tool-vision-luna/README.md
-README.md: 44e8ecb13109d098a9c8cd4f77fda1016587f5d5
-README.zh.md: a5401bd5a07f306714589fcbef1f601f2c79d0a7
+README.md: 4e4849c874fff7fbc0ff4d56f255e591e2cef2b7
+README.zh.md: 64c17bcf6633f96f3299be8c15b2033591f961f5

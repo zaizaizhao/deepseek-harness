@@ -1,0 +1,95 @@
+.userRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.userStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(525px, 82%);
+}
+
+.bubble {
+  max-width: 100%;
+  padding: 10px 16px;
+  border-radius: 22px;
+  background: var(--dsw-specific-bubble);
+  color: var(--dsw-alias-label-primary);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.refChip {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--dsw-specific-bubble-highlight);
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.85em;
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+}
+
+.time {
+  padding-right: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: none;
+  border-radius: 28px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.action:focus-visible {
+  outline: 1.5px solid var(--dsw-alias-button-info-fill);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  [data-time-hover-root] .time {
+    opacity: 0;
+    transition: opacity 80ms ease;
+  }
+
+  [data-time-hover-root]:hover .time,
+  [data-time-hover-root]:focus-within .time {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-time-hover-root] .time {
+    transition: none;
+  }
+}

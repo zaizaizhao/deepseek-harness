@@ -10,10 +10,14 @@
   "references": [
     { "path": "../../../vendor/cordis" },
     { "path": "../../api/remotes/tsconfig.client.json" },
+    { "path": "../../attachment/attachment" },
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../../subagent/tool-vision-luna" },
     { "path": "../../typert/protocol" },
+    { "path": "../locale" },
     { "path": "../runtime" },
-    { "path": "../ui-conversation" }
+    { "path": "../ui-attachment" },
+    { "path": "../ui-conversation" },
+    { "path": "../ui-primitives" }
   ]
 }

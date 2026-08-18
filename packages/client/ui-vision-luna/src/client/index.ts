@@ -1,4 +1,4 @@
-/** Browser submit-time image upload into the governed Luna vision Host service. */
+/** Browser image upload and sent-message reads through the governed Luna vision Host service. */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
@@ -8,30 +8,73 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import visionLunaRemote from '@deepseek-ai/dsh-tool-vision-luna/remote'
 import type {
+  VisionAssetEventData,
   VisionImageMediaType,
   VisionUploadImage,
   VisionUploadResult,
 } from '@deepseek-ai/dsh-tool-vision-luna/types'
+import {
+  registerVisionMessageRenderers,
+  visionAssetDefinition,
+  type VisionImageLoader,
+} from './presentation.tsx'
 
-/** Services required for Session-scoped Remote upload and conversation intake registration. */
-export const inject = ['sessions', 'remote', 'conversation']
+/** Services required for the Remote, durable asset projection, and Chat renderer shadows. */
+export const inject = ['remote', 'conversationEvents', 'slots']
 
-/** Install the generated Remote contribution and the sole conversation image intake adapter. */
+/** Services required while the conversation image intake is registered. */
+const intakeInject = ['conversation', 'remote', 'remote.visionLuna']
+
+/**
+ * Install the generated Remote, durable asset projection, message renderers, and image intake adapter.
+ * @param ctx - client context that owns every contribution.
+ * @returns asynchronous disposer for the mounted Remote and intake fiber.
+ */
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const disposeRemote = await ctx.remote.$mount(visionLunaRemote)
-  let disposeIntake: () => Promise<void>
+  const presentation = new AbortController()
   try {
-    const adapter: ConversationImageIntake = {
-      prepare: request => uploadImages(ctx, request),
+    const mountedNamespace: unknown = ctx.get('remote.visionLuna')
+    const visionLuna = mountedNamespace as ClientContext['remote']['visionLuna'] | undefined
+    if (visionLuna === undefined) throw new Error('visionLuna Remote did not mount its namespace')
+    ctx.conversationEvents.register(visionAssetDefinition)
+    registerVisionMessageRenderers(ctx, visionImageLoader(visionLuna, presentation.signal))
+    const intakeFiber = ctx.inject(intakeInject, (intakeCtx: ClientContext) => {
+      const adapter: ConversationImageIntake = {
+        prepare: request => uploadImages(intakeCtx, request),
+      }
+      return intakeCtx.conversation.registerImageIntake(adapter)
+    })
+    try {
+      await intakeFiber
+    } catch (error) {
+      await intakeFiber.dispose()
+      throw error
     }
-    disposeIntake = ctx.conversation.registerImageIntake(adapter)
+    return async () => {
+      presentation.abort('Luna sent-message presentation was unloaded')
+      await intakeFiber.dispose()
+      await disposeRemote()
+    }
   } catch (error) {
+    presentation.abort('Luna sent-message presentation failed to load')
     await disposeRemote()
     throw error
   }
-  return async () => {
-    await disposeIntake()
-    await disposeRemote()
+}
+
+/** Resolve only plugin-authorized visual assets; native message images keep the Harness loader. */
+function visionImageLoader(
+  remote: ClientContext['remote']['visionLuna'],
+  signal: AbortSignal,
+): VisionImageLoader {
+  return async (sessionId, expected: VisionAssetEventData): Promise<string> => {
+    if (signal.aborted) throw new Error('Luna sent-message presentation was cancelled', { cause: signal.reason })
+    const carried = await remote.read(sessionId, String(expected.assetId), signal)
+    if (!carried.ok) {
+      throw new Error(`visionLuna.read failed: ${carried.error.code}: ${carried.error.message}`)
+    }
+    return `data:${expected.attachment.mediaType};base64,${carried.value}`
   }
 }
 
@@ -48,10 +91,7 @@ async function uploadImages(
   request: ConversationImageIntakeRequest,
 ): Promise<readonly ConversationTextPromptPart[]> {
   assertIntakeActive(request.signal)
-  const scoped = ctx.sessions.scope(request.sessionId)
-  if (scoped === undefined) {
-    throw new Error(`visionLuna.upload requires a live Client Session scope for ${JSON.stringify(request.sessionId)}`)
-  }
+  if (request.files.length === 0) return []
   const images: VisionUploadImage[] = []
   for (const file of request.files) {
     assertIntakeActive(request.signal)
@@ -61,7 +101,7 @@ async function uploadImages(
       ...(file.name === '' ? {} : { name: file.name }),
     })
   }
-  const carried = await scoped.remote.visionLuna.upload({ images }, request.signal)
+  const carried = await ctx.remote.visionLuna.upload(request.sessionId, { images }, request.signal)
   if (!carried.ok) {
     throw new Error(`visionLuna.upload failed: ${carried.error.code}: ${carried.error.message}`)
   }

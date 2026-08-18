@@ -939,11 +939,14 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `vision/asset` — log-only
 
 ```ts persistence-catalog
-/** Durable, log-only authorization from one parent Session to an immutable image object. */
+/**
+ * Authorizes one immutable image object for a parent Session.
+ * @param data - stable asset id, durable attachment reference, and admitted origin.
+ */
 'vision/asset': VisionAssetEventData
 ```
 
-来源：[`packages/subagent/tool-vision-luna/src/assets.ts:43`](../packages/subagent/tool-vision-luna/src/assets.ts)
+来源：[`packages/subagent/tool-vision-luna/src/types.ts:37`](../packages/subagent/tool-vision-luna/src/types.ts)
 
 ### `web/*`
 

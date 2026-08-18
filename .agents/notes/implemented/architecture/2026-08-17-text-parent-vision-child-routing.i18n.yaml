@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-17-text-parent-vision-child-routing.md
-2026-08-17-text-parent-vision-child-routing.md: d3558dc3079a6ef2bd7df1d16d72e8509383f3c8
-2026-08-17-text-parent-vision-child-routing.zh.md: 81f001b01bdfa593386d350a389a84ea4feffa88
+2026-08-17-text-parent-vision-child-routing.md: a518784be2886464ce28f63c1cce3fe8176a46b5
+2026-08-17-text-parent-vision-child-routing.zh.md: 8cf896f6c076ac551a7e63ea6507ba7c548013f9

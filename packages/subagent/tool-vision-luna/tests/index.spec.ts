@@ -173,6 +173,27 @@ describe('VisionLunaService composition', () => {
     })
   })
 
+  it('reads browser presentation bytes only through the owning Session authorization', async () => {
+    const b = await bench()
+    const receipt = await upload(b)
+    const assetId = receipt.assets[0]?.assetId
+    if (assetId === undefined) throw new Error('upload omitted its asset receipt')
+    const event = b.agent.session.events.findLast(candidate => candidate.type === 'vision/asset')
+    if (event?.type !== 'vision/asset') throw new Error('upload omitted its authorization event')
+
+    const loaded = await b.service.read(b.agent, assetId, signal)
+    expect(loaded).toBe(Buffer.from(PNG).toString('base64'))
+    await expect(b.service.read(b.agent, 'vision:not-authorized', signal))
+      .rejects.toMatchObject({ code: 'VISION_ASSET_FORBIDDEN' })
+
+    const cwd = b.agent.session.header.cwd
+    if (cwd === undefined) throw new Error('vision test Session has no workspace')
+    const foreignSession = b.ctx.sessions.create(SessionId('vision-foreign'), { meta: { cwd } })
+    const foreignAgent = { id: foreignSession.id, ctx: b.ctx, session: foreignSession } as unknown as Agent
+    await expect(b.service.read(foreignAgent, assetId, signal))
+      .rejects.toMatchObject({ code: 'VISION_ASSET_FORBIDDEN' })
+  })
+
   it('renders explicit OCR and empty evidence lists without fabricating claims', async () => {
     const b = await bench({}, () => run(Promise.resolve({
       output: [],

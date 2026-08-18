@@ -11,7 +11,6 @@ import type { JobOutcome } from '@deepseek-ai/dsh-jobs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-session'
@@ -224,6 +223,28 @@ export class VisionLunaService extends TypertRemoteService {
     return this.track(signal, async (operationSignal) => {
       assertVisionActive(operationSignal)
       const result = await this.assets.upload(agent, request)
+      assertVisionActive(operationSignal)
+      return result
+    })
+  }
+
+  /**
+   * Read an authorized visual asset for sent-message presentation.
+   * The Agent lookup supplies the Session scope; the response contains no credential or storage path.
+   * @param agent - exact Session authorization owner resolved by Typert.
+   * @param assetId - opaque id projected from that Session's authorization event.
+   * @param signal - Remote caller cancellation.
+   * @returns canonical base64 image data from the authorized stored object.
+   */
+  @Remote('read')
+  read(
+    agent: Agent,
+    assetId: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    return this.track(signal, async (operationSignal) => {
+      assertVisionActive(operationSignal)
+      const result = await this.assets.read(agent, assetId, operationSignal)
       assertVisionActive(operationSignal)
       return result
     })

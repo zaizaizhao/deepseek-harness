@@ -1,6 +1,7 @@
 /** Client-safe request, result, and trace vocabulary for Luna vision delegation. */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 
 /** Opaque session-authorized reference to one durable visual asset. */
 export type VisionAssetId = Branded<'VisionAssetId'>
@@ -12,6 +13,29 @@ export type VisionAssetId = Branded<'VisionAssetId'>
  */
 export function VisionAssetId(value: string): VisionAssetId {
   return value as VisionAssetId
+}
+
+/** Auditable origin of one Session-authorized visual asset. */
+export type VisionAssetSource =
+  | { readonly kind: 'upload'; readonly name?: string }
+  | { readonly kind: 'path'; readonly path: string }
+  | { readonly kind: 'url'; readonly origin: string; readonly pathname: string }
+
+/** Durable visual-asset authorization recorded before a parent prompt uses its id. */
+export interface VisionAssetEventData {
+  readonly assetId: VisionAssetId
+  readonly attachment: ImageAttachmentRef
+  readonly source: VisionAssetSource
+}
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /**
+     * Authorizes one immutable image object for a parent Session.
+     * @param data - stable asset id, durable attachment reference, and admitted origin.
+     */
+    'vision/asset': VisionAssetEventData
+  }
 }
 
 /** Raster formats accepted by the shared Harness attachment store. */

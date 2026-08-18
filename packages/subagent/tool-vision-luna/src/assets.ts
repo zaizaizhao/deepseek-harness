@@ -14,6 +14,8 @@ import { VisionError } from './errors.ts'
 import { VisionAssetId } from './types.ts'
 import type {
   VisionAssetId as VisionAssetIdType,
+  VisionAssetEventData,
+  VisionAssetSource,
   VisionAssetTrace,
   VisionUploadImage,
   VisionUploadRequest,
@@ -25,24 +27,6 @@ export type VisionAssetInput =
   | { readonly asset_id: string }
   | { readonly file_path: string }
   | { readonly url: string }
-
-type VisionAssetSource =
-  | { readonly kind: 'upload'; readonly name?: string }
-  | { readonly kind: 'path'; readonly path: string }
-  | { readonly kind: 'url'; readonly origin: string; readonly pathname: string }
-
-interface VisionAssetEventData {
-  readonly assetId: VisionAssetIdType
-  readonly attachment: ImageAttachmentRef
-  readonly source: VisionAssetSource
-}
-
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    /** Durable, log-only authorization from one parent Session to an immutable image object. */
-    'vision/asset': VisionAssetEventData
-  }
-}
 
 /** Resolved durable image supplied to the visual child. */
 export interface ResolvedVisionAsset {
@@ -136,6 +120,24 @@ export class VisionAssetResolver {
   }
 
   /**
+   * Read one visual asset after resolving its exact Session authorization event.
+   * @param agent - Session whose durable event authorizes the asset.
+   * @param assetId - opaque id projected from that Session's authorization event.
+   * @param signal - Remote caller cancellation.
+   * @returns canonical base64 image data for browser display.
+   */
+  async read(
+    agent: Agent,
+    assetId: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const authoritative = this.authorization(agent.session, assetId)
+    const stored = await this.ctx.attachments.readImage(authoritative.attachment, signal)
+    signal.throwIfAborted()
+    return Buffer.from(stored.data).toString('base64')
+  }
+
+  /**
    * Resolve an ordered Tool batch, validating every new image before saving any.
    * @param agent - parent Agent and Session authorization owner.
    * @param inputs - asset ids, workspace paths, or allowed HTTPS URLs.
@@ -226,12 +228,17 @@ export class VisionAssetResolver {
   }
 
   private authorized(session: Session, raw: string): ResolvedVisionAsset {
+    const authorization = this.authorization(session, raw)
+    return { assetId: authorization.assetId, attachment: authorization.attachment }
+  }
+
+  private authorization(session: Session, raw: string): VisionAssetEventData {
     const found = session.events.findLast((event): event is SessionEvent<'vision/asset'> =>
       event.type === 'vision/asset' && event.data.assetId === raw)
     if (found === undefined) {
       throw new VisionError(`visual asset ${JSON.stringify(raw)} is not authorized for this Session`, 'VISION_ASSET_FORBIDDEN')
     }
-    return { assetId: found.data.assetId, attachment: found.data.attachment }
+    return found.data
   }
 
   private async readPath(agent: Agent, path: string, signal: AbortSignal): Promise<PendingImage> {

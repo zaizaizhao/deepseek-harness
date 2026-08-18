@@ -66,9 +66,10 @@ DeepSeek 主模型保持独立。普通 Agent 配置选择主 Agent 的 provider
 
 1. 浏览器适配器在发送主提示词前上传完整图片批次。Host 会在保存任何成员前校验规范 base64、数量与字节限额、重复内容、MIME 与文件签名一致性以及图片固有尺寸。
 2. 附件存储持久化内容寻址字节；`vision/asset` Session 事件把不透明 `asset_id` 授权给这个确切的主 Session。
-3. `gpt_luna_vision` 接受已授权 `asset_id`、工作区内 `file_path` 或精确 origin 白名单中的 HTTPS URL。路径解析拒绝越界与末端符号链接；URL 解析拒绝凭据、IP 字面量、私网或公私混合 DNS 结果，并通过 DNS 固定、防重绑定、重定向复验和流式大小限制保护下载。
-4. runner 先确认所选 Harness 模型声明同时支持 `text` 与 `image`，再启动一个无工具、`maxDepth: 1`、带敌对图片内容防护 persona、严格输出 schema 与“文本 + 图片”内容块的 `spawn` 子 Agent。
-5. Host 校验子 Agent 的结构化结果，并补充权威附件追踪、子 Session id、provider/model、缓存命中状态与警告，再把文本结果交给主 Agent。
+3. 生成的 `visionLuna.read` Remote 接受 Session id 与从 `vision/asset` 事件投影出的不透明资产 id，用于展示已发送消息。它在该 Session 内解析权威事件、使用事件中的引用验证存储对象，并返回仅供浏览器使用的规范 base64，不暴露凭据或存储路径。
+4. `gpt_luna_vision` 接受已授权 `asset_id`、工作区内 `file_path` 或精确 origin 白名单中的 HTTPS URL。路径解析拒绝越界与末端符号链接；URL 解析拒绝凭据、IP 字面量、私网或公私混合 DNS 结果，并通过 DNS 固定、防重绑定、重定向复验和流式大小限制保护下载。
+5. runner 先确认所选 Harness 模型声明同时支持 `text` 与 `image`，再启动一个无工具、`maxDepth: 1`、带敌对图片内容防护 persona、严格输出 schema 与“文本 + 图片”内容块的 `spawn` 子 Agent。
+6. Host 校验子 Agent 的结构化结果，并补充权威附件追踪、子 Session id、provider/model、缓存命中状态与警告，再把文本结果交给主 Agent。
 
 前台与后台路径共用同一个并发控制器、时限、校验与缓存。同一父 Session 内相同的进行中请求只运行一个子 Agent；只要还有其他等待者，取消其中一个不会终止共享执行。后台工作进入现有 jobs registry；本包不会另建任务系统。
 

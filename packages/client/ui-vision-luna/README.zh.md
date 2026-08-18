@@ -2,15 +2,21 @@
 
 [English](README.md) | 中文
 
-这是 [`@deepseek-ai/dsh-tool-vision-luna`](../../subagent/tool-vision-luna/README.md) 的浏览器图片接入适配器。它挂载 Host 包生成的 `visionLuna` Remote，并在 `ctx.conversation` 上注册唯一的发送时图片接入 provider。
+这是 [`@deepseek-ai/dsh-tool-vision-luna`](../../subagent/tool-vision-luna/README.md) 的浏览器图片接入与已发送消息展示插件。它挂载 Host 包生成的 `visionLuna` Remote，在 `ctx.conversation` 上注册唯一的发送时图片接入 provider，并把持久视觉引用展示成普通消息图片。
 
 本插件缺席时，`ui-conversation` 保持原生行为，把草稿图片序列化为原始图片提示词块。本插件存在时，发送变成受门控的两阶段操作：先把完整、有序文件批次上传给 Host，再使用纯文本 `asset_id` 引用块发送主提示词。上传失败、适配器卸载、会话服务销毁或提示词发送失败都会保留草稿供重试，且绝不会发送半份提示词。提示词发送失败时，已经授权、按内容寻址的资产可以留给重试使用；持久存储不会回滚。
 
-浏览器接受已经通过共享 composer 策略准入的 PNG、JPEG、WebP 与 GIF 文件。它以有界分块编码上传载荷，使用当前 Session 的 Remote scope 完成授权，要求每个输入文件恰好对应一份持久化回执，并在发送主提示词前拒绝不支持的 MIME 或回执数量不一致。
+浏览器接受已经通过共享 composer 策略准入的 PNG、JPEG、WebP 与 GIF 文件。纯文本发送会直接跳过 Remote。对于非空图片批次，适配器以有界分块编码上传载荷，使用目标会话 id 调用生成的 Remote，要求每个输入文件恰好对应一份持久化回执，并在发送主提示词前拒绝不支持的 MIME 或回执数量不一致。
 
 ## 配置
 
 本包没有配置，也不处理机密。Client 不会收到 provider API Key、凭据引用、端点或协议。所有模型路由与凭据解析都发生在 Host 现有 Harness 服务内；浏览器到 Host 的载荷只有图片数据与可选显示名称。
+
+## 已发送消息展示
+
+持久化用户消息仍包含完全相同的模型引用，但本插件会把每个匹配的 `vision/asset` 事件投影成隐藏、可按键直接查询的 Chat 节点，并以更高优先级覆盖标准用户消息与已接纳 steering 消息 renderer。具有持久事件凭据的引用会替换成共享图片画廊；用户输入的普通文字仍保留在气泡和复制内容中。如果较早的历史页尚未加载该授权事件，界面会继续显示引用，而不会展示未经验证的图片；事件可用后投影会自动更新。该转换仅影响展示，不会改写 Session 历史或模型输入。
+
+投影图片通过生成的 `visionLuna.read` Remote 加载，并携带正在展示的 Session id 与不透明资产 id。Host 会用该 id 在这个确切 Session 的 `vision/asset` 事件中完成解析并验证存储对象，随后才返回仅供浏览器使用的 base64；Client 会把这些字节与持久事件元数据组合成共享图片画廊使用的 data URL。原生消息图片继续使用 Harness 标准图片加载器。展示字节不会进入主提示词或插件配置。
 
 ## 模型体验
 
@@ -32,4 +38,5 @@
 
 - 同一时刻只能有一个图片接入适配器；重复注册会在插件激活时失败。
 - 上传发生在发送时而不是选择时，因此大批图片会在主提示词前增加一次 Host 往返。
-- 适配器不提供独立图库或图片编辑器；预览与草稿删除仍由 `ui-conversation` 拥有。
+- 插件不提供资产库或图片编辑器。草稿预览与删除仍由 `ui-conversation` 拥有；已发送消息中的图片复用共享附件画廊。
+- 本包自行挂载生成的 Remote，因此图片接入注册会等待准确的 `remote.visionLuna` 服务，并使用显式传入会话 id 的方法。运行时创建的会话上下文不会继承后加载插件新增的服务注入。
